@@ -1,0 +1,35 @@
+# Arquivo de Receitas: Serviços Necessários para a aplicação
+
+# Comando para Executar o Docker: docker-compose up -d
+# Este comando é utilizado para iniciar os serviços definidos no arquivo docker-compose.yml no modo detached.
+# Isso significa que os contêineres serão executados em segundo plano, sem a necessidade de manter o terminal aberto.
+
+version: '3.7'
+
+services:
+  postgres:
+    image: bitnami/postgresql:latest
+    # Imagem previamente criada por outra pessoa ou empresa, contendo os comandos específicos para instalar o PostgreSQL em um sistema Linux zerado.
+    ports:
+      - '5432:5432' # Porta padrão do PostgreSQL, acessível pela aplicação através do endereço localhost:5432, utilizando a porta do contêiner (postgres).
+    environment:
+      - POSTGRES_USER=docker
+      - POSTGRES_PASSWORD=docker
+      - POSTGRES_DB=polls
+    volumes:
+      - polls_pg_data:/bitnami/postgresql
+    # Sistema de storage: ao subir o contêiner do PostgreSQL, os dados do banco de dados persistem mesmo que o contêiner seja interrompido, o computador seja desligado ou reiniciado.
+
+  redis:
+    image: bitnami/redis:latest
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes # Indica que nenhuma senha será configurada (comum em ambientes de desenvolvimento).
+    ports:
+      - '6379:6379'
+    volumes:
+      - polls_redis_data:/bitnami/redis/data
+
+volumes:
+  # Configura o nome das pastas aqui (pasta oculta dentro do Docker utilizada para armazenar dados).
+  polls_pg_data:
+  polls_redis_data:
