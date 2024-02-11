@@ -1,0 +1,28 @@
+// Este arquivo representa o esquema do nosso banco de dados, oferecendo uma representação fiel das tabelas e colunas.
+
+// Configuração do gerador Prisma Client para JavaScript.
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Configuração da fonte de dados para o banco de dados PostgreSQL, utilizando a URL do ambiente.
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Definição do modelo "Poll" que representa uma tabela no banco de dados.
+model Poll {
+  id String @id @default(uuid()) // Chave primária
+  // @default(uuid()): Especifica que o valor padrão para este campo é gerado automaticamente usando a função uuid(), que geralmente produz um identificador único universal, oferecendo mais segurança do que um ID numérico.
+
+  title String // Coluna que armazena o título da enquete.
+
+  createdAt DateTime @default(now())
+  // @default(now()): Especifica que, por padrão, quando uma nova instância desse modelo for criada, o valor do campo "createdAt" será preenchido automaticamente com a data e hora atuais, utilizando a função now().
+
+  updatedAt DateTime @default(now())
+  // @default(now()): Especifica que, por padrão, quando uma instância existente desse modelo for atualizada, o valor do campo "updatedAt" será automaticamente atualizado para refletir a data e hora atuais, utilizando a função now().
+}
+
+// Para criar a tabela no banco de dados, execute o comando: npx prisma migrate dev
