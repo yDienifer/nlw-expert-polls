@@ -13,16 +13,37 @@ datasource db {
 
 // Definição do modelo "Poll" que representa uma tabela no banco de dados.
 model Poll {
-  id String @id @default(uuid()) // Chave primária
-  // @default(uuid()): Especifica que o valor padrão para este campo é gerado automaticamente usando a função uuid(), que geralmente produz um identificador único universal, oferecendo mais segurança do que um ID numérico.
-
+  id    String @id @default(uuid()) // Chave primária.
   title String // Coluna que armazena o título da enquete.
 
-  createdAt DateTime @default(now())
-  // @default(now()): Especifica que, por padrão, quando uma nova instância desse modelo for criada, o valor do campo "createdAt" será preenchido automaticamente com a data e hora atuais, utilizando a função now().
-
-  updatedAt DateTime @default(now())
-  // @default(now()): Especifica que, por padrão, quando uma instância existente desse modelo for atualizada, o valor do campo "updatedAt" será automaticamente atualizado para refletir a data e hora atuais, utilizando a função now().
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @default(now())
+  options   PollOption[] @relation("options") // Relacionamento com a tabela PollOption.
+  votes     Vote[]
 }
 
-// Para criar a tabela no banco de dados, execute o comando: npx prisma migrate dev
+model PollOption {
+  id     String @id @default(uuid())
+  title  String
+  pollId String
+
+  // Criando um relacionamento entre a tabela Poll e a PollOption.
+  // associatedPoll: É o nome do campo que será usado para acessar o relacionamento quando estiver. consultando dados.
+  associatedPoll Poll   @relation("options", fields: [pollId], references: [id])
+  votes          Vote[]
+}
+
+model Vote {
+  id             Int        @id @default(autoincrement())
+  sessionId      String
+  pollOptionId   String
+  pollId         String
+  createdAt      DateTime   @default(now())
+  pollOption     PollOption @relation(fields: [pollOptionId], references: [id])
+  associatedPoll Poll       @relation(fields: [pollId], references: [id])
+
+  // Impede que o usuário vote duas vezes na mesma enquete.
+  @@unique([sessionId, pollId])
+}
+
+// Para criar a tabela no banco de dados, execute o comando: npx prisma migrate dev.
