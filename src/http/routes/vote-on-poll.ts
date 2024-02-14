@@ -2,10 +2,12 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { PRISMA } from "../../lib/prisma";
 import { FastifyInstance } from 'fastify';
+import { REDIS } from '../../lib/redis';
+import { VOTING } from '../../utils/voting-pub-sub';
 
 export async function voteOnPoll(APP: FastifyInstance) {
     // Rota para obter detalhes de uma enquete específica.
-    // O parâmetro pollId é parte da URL para identificar a enquete desejada.
+    // O parâmetro pollId faz parte da URL para identificar a enquete desejada.
     APP.post('/polls/:pollId/votes', async (request, reply) => {
         const VOTE_ON_POLL_BODY = z.object({
             pollOptionId: z.string().uuid()
@@ -20,7 +22,8 @@ export async function voteOnPoll(APP: FastifyInstance) {
 
         let { sessionId } = request.cookies;
 
-        if (!sessionId) { // Se o usuário nunca fez uma requisição para votar.
+        // Se o usuário nunca fez uma requisição para votar, gera um novo sessionId.
+        if (!sessionId) {
             sessionId = randomUUID();
 
             // Resposta para o usuário.
@@ -28,16 +31,14 @@ export async function voteOnPoll(APP: FastifyInstance) {
             reply.setCookie('sessionId', sessionId, {
                 path: '/', // Indica em quais rotas da aplicação o cookie estará disponível.
                 maxAge: 60 * 60 * 24 * 30, // 30 dias
-                // Indica por quanto tempo o cookie ficará salvo no computador do usuário (informação obrigatória).
-                signed: true, // Faz com que o usuário não consiga modificar o cookie manualmente (afinal, o cookie está assinado).
-                // O que significa um cookie assinado?: O back-end garantirá que essa informação foi gerada por este back-end e não foi enviada ou criada manualmente de outra forma.
-                httpOnly: true, // Faz com que o cookie só seja acessível pelo back-end da aplicação; ou seja, o front-end não conseguirá acessá-lo.
+                signed: true, // O back-end garante que essa informação foi gerada por ele e não foi manipulada manualmente.
+                httpOnly: true, // O cookie só é acessível pelo back-end da aplicação, não pelo front-end.
             });
         }
 
         const USER_PREVIOUS_VOTE_ON_POLL = await PRISMA.vote.findUnique({
             where: {
-                sessionId_pollId: { // Busca por um índice (busca muito mais performática).
+                sessionId_pollId: { // Busca por um índice, mais performático.
                     sessionId,
                     pollId
                 }
@@ -46,7 +47,7 @@ export async function voteOnPoll(APP: FastifyInstance) {
 
         if (USER_PREVIOUS_VOTE_ON_POLL) {
             if (USER_PREVIOUS_VOTE_ON_POLL.pollOptionId !== pollOptionId) {
-                // Atualizar o voto existente com a nova opção.
+                // Atualiza o voto existente com a nova opção.
                 await PRISMA.vote.update({
                     where: {
                         id: USER_PREVIOUS_VOTE_ON_POLL.id
@@ -55,11 +56,18 @@ export async function voteOnPoll(APP: FastifyInstance) {
                         pollOptionId
                     }
                 });
+
+                // Atualiza os votos no Redis e notifica os inscritos sobre a mudança.
+                const VOTES = await REDIS.zincrby(pollId, -1, USER_PREVIOUS_VOTE_ON_POLL.pollOptionId)
+                VOTING.publish(pollId, {
+                    pollOptionId: USER_PREVIOUS_VOTE_ON_POLL.pollId,
+                    votes: Number(VOTES)
+                });
             } else {
-                return reply.status(400).send({ "message": 'You already voted on this poll with the same option.' });
+                return reply.status(400).send({ "message": 'You have already voted on this poll with the same option.' });
             }
         } else {
-            // Se o usuário não votou antes, criar um novo voto.
+            // Se o usuário não votou antes, cria um novo voto.
             await PRISMA.vote.create({
                 data: {
                     sessionId,
@@ -69,6 +77,14 @@ export async function voteOnPoll(APP: FastifyInstance) {
             });
         }
 
+        // Incrementa em 1 o ranking dessa opção de voto no Redis e notifica os inscritos sobre a mudança.
+        const VOTES = await REDIS.zincrby(pollId, 1, pollOptionId)
+        VOTING.publish(pollId, {
+            pollOptionId,
+            votes: Number(VOTES)
+        });
+
+        // Responde com sucesso, retornando o sessionId.
         return reply.status(201).send({ sessionId });
     });
 }
