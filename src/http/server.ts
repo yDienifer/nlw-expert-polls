@@ -6,6 +6,8 @@ import cookie from "@fastify/cookie";
 import { createPoll } from "./routes/create-poll";
 import { getPoll } from "./routes/get-polls";
 import { voteOnPoll } from "./routes/vote-on-poll";
+import websocket from '@fastify/websocket';
+import { pollResults } from "./ws/poll-results";
 
 const APP = fastify(); // Cria uma instância do Fastify.
 
@@ -14,10 +16,13 @@ APP.register(cookie, {
   hook: 'onRequest', // Antes de todas as requisições feitas pelo nosso back-end, este plugin entra em ação e faz o parsing dos hooks.
 })
 
+APP.register(websocket)
+
 // Cadastra a rota dentro do app usando o registrador do Fastify.
 APP.register(createPoll)
 APP.register(getPoll)
 APP.register(voteOnPoll)
+APP.register(pollResults)
 
 APP.listen({ port: 3333 }).then(() => { // Configura o Fastify para ouvir em uma porta específica.
   console.log("O servidor está rodando!");
